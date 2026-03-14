@@ -120,6 +120,15 @@ pub fn resolve_js_ts_imports(scan_root: &Path, files: &[&FileNode], known_files:
     let scan_root = scan_root.canonicalize().unwrap_or_else(|_| scan_root.to_path_buf());
     let scan_root = scan_root.as_path();
 
+    // On Windows, file paths in known_files use backslashes. Normalize to forward slashes
+    // so they match the oxc-resolved paths which we also normalize to forward slashes.
+    #[cfg(windows)]
+    let normalized_owned: Vec<String> = known_files.iter().map(|p| p.replace('\\', "/")).collect();
+    #[cfg(windows)]
+    let known_files_normalized: HashSet<&str> = normalized_owned.iter().map(|s| s.as_str()).collect();
+    #[cfg(windows)]
+    let known_files = &known_files_normalized;
+
     let known_identifiers = build_known_identifiers(known_files);
     let js_ts_files = collect_js_ts_with_imports(files);
     if js_ts_files.is_empty() {
@@ -224,9 +233,15 @@ fn resolve_single_specifier(
     ctx.resolved_count.fetch_add(1, Ordering::Relaxed);
     let resolution = resolver.resolve(dir, specifier).ok()?;
     let full_path = resolution.full_path().to_path_buf();
-    let rel = full_path.strip_prefix(ctx.scan_root).ok()?;
-    let rel_str = rel.to_string_lossy();
-    if ctx.known_files.contains(rel_str.as_ref()) && rel_str.as_ref() != from_path {
+    // Normalize both paths to forward slashes before strip_prefix (Windows backslash fix)
+    let full_path_str = full_path.to_string_lossy().replace('\\', "/");
+    let scan_root_str = ctx.scan_root.to_string_lossy().replace('\\', "/");
+    // Strip UNC prefix (\\?\) added by Windows canonicalize
+    let full_path_str = full_path_str.trim_start_matches("//?/");
+    let scan_root_str_trimmed = scan_root_str.trim_start_matches("//?/");
+    let rel_str = full_path_str.strip_prefix(scan_root_str_trimmed)
+        .map(|s| s.trim_start_matches('/'))?;
+    if ctx.known_files.contains(rel_str) && rel_str != from_path {
         Some(ImportEdge { from_file: from_path.to_string(), to_file: rel_str.to_string() })
     } else {
         None
