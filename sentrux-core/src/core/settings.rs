@@ -183,7 +183,7 @@ impl Default for Settings {
 
             zoom_min: 0.05,
             zoom_max: 50.0,
-            zoom_scroll_factor: 1.1,
+            zoom_scroll_factor: 1.02,
             fit_content_padding: 20.0,
 
             minimap_w: 160.0,
