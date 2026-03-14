@@ -224,7 +224,7 @@ fn scan_file(
         });
 
     FileNode {
-        path: rel.to_string_lossy().to_string(),
+        path: rel.to_string_lossy().replace('\\', "/"),
         name: collected
             .path
             .file_name()
